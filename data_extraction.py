@@ -5,7 +5,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 import whois
 import dns.resolver
+import os
+import certifi
 
+os.environ['SSL_CERT_FILE'] = certifi.where()
+os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 class whoisinfo(TypedDict):
     registrar: str
     creation_date: str
@@ -42,10 +46,44 @@ def dns_lookup(domain):
      except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
         pass # No MX records found
      return records
-  
-domain="google.com"
-check=whoislookup(domain)
-print(f"Printing the whoislookup info: {check}")
-dnscheck=dns_lookup(domain)
-print(f"\nPrinting the dns info: {dnscheck}")
+import requests
+import ssl
+import socket
+def header_lookup(domain):
+     headers={"Content-Security-Policy": "missing","X-Frame-Options": "missing", "Strict-Transport-Security": "missing", "X-Content-Type-Options": "missing"}
+     # we also need to check if the ssl certificates are valid or not
 
+     try:
+          response=requests.get(f"https://{domain}")
+          answer=response.headers
+          for i in headers:
+               if i in answer:
+                    headers[i]=answer[i]
+     except Exception as e:
+          return {"error":f"{e}"}
+          
+     return headers
+def ssl_lookup(domain):
+     sslvalues = {"issuer": "missing", "expiry": "missing"}
+     context = ssl.create_default_context()
+     try:
+          with socket.create_connection((domain, 443)) as sock:
+               with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                    cert = ssock.getpeercert()
+                    issuer = dict(x[0] for x in cert['issuer'])
+                    sslvalues["issuer"]=issuer.get("organizationName")
+                    
+                    sslvalues["expiry"]=cert["notAfter"]
+                    return sslvalues
+     except Exception as e:
+          return {"Error": f"{e}"}
+
+               
+               
+
+domain="facebook.com"
+# check=whoislookup(domain)
+# print(f"Printing the whoislookup info: {check}")
+# dnscheck=dns_lookup(domain)
+# print(f"\nPrinting the dns info: {dnscheck}")
+print(ssl_lookup(domain))
