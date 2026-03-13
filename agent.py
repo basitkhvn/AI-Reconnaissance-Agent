@@ -1,5 +1,5 @@
 from typing import TypedDict
-from data_extraction import whoislookup,dns_lookup,header_lookup,ssl_lookup
+from data_extraction import whoislookup,dns_lookup,header_lookup,ssl_lookup,subdomain_lookup,port_scan_node,tech_lookup
 from langgraph.graph import StateGraph, MessagesState, START, END
 from typing import TypedDict,List
 from langchain_core.messages import HumanMessage, AIMessage
@@ -19,6 +19,9 @@ class ReconState(TypedDict):
     risk_scores: list
     attack_map: str
     report: str
+    subdomains: list
+    open_ports: list
+    technologies: list
 
 def whois_node(state: ReconState):
         d=state["domain"]
@@ -28,10 +31,21 @@ def whois_node(state: ReconState):
     
 def dns_node(state: ReconState):
         d=state["domain"]
-
         response=dns_lookup(d)
         return {"dns_data": response}
+def subdomain_node(state: ReconState):
+    d = state["domain"]
+    response = subdomain_lookup(d)
+    return {"subdomains": response}
+def ports_node(state: ReconState):
+    d = state["domain"]
+    response = port_scan_node(d)
+    return {"open_ports": response}
 
+def tech_node(state: ReconState):
+    d = state["domain"]
+    response = tech_lookup(d)
+    return {"technologies": response}
 def header_node(state: ReconState):
         d=state["domain"]
 
@@ -45,7 +59,13 @@ def ssl_node(state: ReconState):
 
         return {"ssl_data": response}
 def reasoning_node(state: ReconState):
-       llm_msg={"whoisdata":state["whoisdata"], "dns_data": state["dns_data"], "header_data": state["header_data"], "ssl": state["ssl_data"]}
+       llm_msg={"whoisdata":state["whoisdata"],
+                "dns_data": state["dns_data"],
+                "header_data": state["header_data"],
+                "ssl": state["ssl_data"],
+                "subdomains": state["subdomains"],
+                "open_ports": state["open_ports"],
+                "technologies": state["technologies"]}
        msg = f"""
                 You are a security analyst.
 
@@ -205,11 +225,17 @@ graph.add_edge("dns","header")
 graph.add_node("ssl",ssl_node)
 graph.add_edge("header","ssl")
 graph.add_node("reasoning",reasoning_node)
-graph.add_edge("ssl","reasoning")
+graph.add_edge("ssl","subdomains")
+graph.add_node("subdomains",subdomain_node)
+graph.add_node("ports_open",ports_node)
+graph.add_edge("subdomains","ports_open")
+graph.add_node("tech",tech_node)
+graph.add_edge("ports_open","tech")
 graph.add_node("decision",decision_node)
 graph.add_node("risk_scoring",risk_scoring_node)
 graph.add_node("attackmap",attack_surface_node)
 graph.add_node("report",report_node)
+graph.add_edge("tech","reasoning")
 graph.add_edge("reasoning","decision")
 graph.add_edge("decision","risk_scoring")
 graph.add_edge("risk_scoring","attackmap")
