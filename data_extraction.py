@@ -26,7 +26,6 @@ def whoislookup(domain: str) -> whoisinfo:
         try:
             w=whois.whois(domain)
             domain_info: whoisinfo= {"registrar":w["registrar"],"creation_date": formatdate(w.get("creation_date")),"expiry_date": formatdate(w.get("expiration_date")),"name_servers": w["name_servers"]}
-            print(w["creation_date"])
             return domain_info
         except Exception as e:
              return {"error": str(e)}
@@ -72,18 +71,33 @@ def ssl_lookup(domain):
                     cert = ssock.getpeercert()
                     issuer = dict(x[0] for x in cert['issuer'])
                     sslvalues["issuer"]=issuer.get("organizationName")
-                    
+
                     sslvalues["expiry"]=cert["notAfter"]
                     return sslvalues
      except Exception as e:
           return {"Error": f"{e}"}
 
                
-               
+def subdomain_lookup(domain):
+     url=f"https://crt.sh/?q=%.{domain}&output=json"  
+     response = requests.get(url)
+     sblist=[]
+     try:
+          data= response.json()
+          for i in data:
+               subdomains=i["name_value"]
+               subdomains=subdomains.splitlines()
+               for j in subdomains:
+                    sblist.append(j)
+          realsubs=list(set(sblist)) # we want to remove duplicates     
+          return {"subdomains": realsubs}
+     except Exception as e:
+           return {"error": str(e)}
 
 domain="facebook.com"
 # check=whoislookup(domain)
 # print(f"Printing the whoislookup info: {check}")
 # dnscheck=dns_lookup(domain)
 # print(f"\nPrinting the dns info: {dnscheck}")
-print(ssl_lookup(domain))
+
+print(subdomain_lookup('google.com'))
